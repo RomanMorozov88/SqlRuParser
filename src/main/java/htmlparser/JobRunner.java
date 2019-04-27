@@ -1,5 +1,11 @@
 package htmlparser;
 
+import htmlparser.model.Vacancy;
+import htmlparser.service.DBworker;
+import htmlparser.service.ParserSQLru;
+import htmlparser.threads.ParsingTask;
+import htmlparser.threads.ThreadPool;
+import htmlparser.util.Config;
 import org.apache.log4j.Logger;
 import org.quartz.Job;
 import org.quartz.JobDataMap;
@@ -23,17 +29,14 @@ public class JobRunner implements Job {
     public static final String COUNT = "count";
     public static final String PREVDATE = "prevdate";
 
-    public JobRunner() {
-    }
-
     @Override
     public void execute(JobExecutionContext context) {
+
+        logger.info(">>>Start");
 
         JobDataMap data = context.getJobDetail().getJobDataMap();
         int count = data.getInt(COUNT);
         LocalDateTime prev = (LocalDateTime) data.get(PREVDATE);
-
-        System.out.println(count);
 
         BiPredicate<LocalDateTime, LocalDateTime> timeFilter;
         if (count == 1) {
@@ -45,9 +48,6 @@ public class JobRunner implements Job {
         Config config = new Config();
         config.init();
         String target = config.get("SQL.ru");
-        String pattern = config.get("filter.pattern");
-
-        DBworker worker = new DBworker();
 
         ParserSQLru sm = new ParserSQLru();
         int pages = 0;
@@ -57,31 +57,26 @@ public class JobRunner implements Job {
             logger.error(e.getMessage(), e);
         }
 
-        int controlCheck;
-        for (int i = 1; i <= pages; i++) {
-            String subTarget = target + "/" + i;
-            try {
-                controlCheck = sm.parsPage(subTarget, pattern, timeFilter, prev);
-                if (controlCheck == 0) {
-                    break;
-                }
-            } catch (IOException e) {
-                logger.error(e.getMessage(), e);
-            }
-        }
+        logger.info(">>>TOTAL PAGES: " + pages);
 
-        List<Vacancy> list = sm.getVacancyList();
-        try {
+        try (DBworker worker = new DBworker()) {
             worker.init(config);
+            ThreadPool pool = new ThreadPool();
+            for (int i = 1; i <= pages; i++) {
+                pool.work(new ParsingTask(sm, config, timeFilter, prev, i));
+            }
+            logger.info(">>>Parsing by threads.");
+            pool.threadPoolInit();
+            pool.joiningThreads();
+            pool.shutdown();
+            List<Vacancy> finalVacanciesList = pool.getResultList();
+            logger.info(">>>Add in DB.");
+            worker.add(finalVacanciesList);
+        } catch (SQLException e) {
+            logger.error(e.getMessage(), e);
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage(), e);
         } catch (ClassNotFoundException e) {
-            logger.error(e.getMessage(), e);
-        } catch (SQLException e) {
-            logger.error(e.getMessage(), e);
-        }
-        worker.add(list);
-        try {
-            worker.close();
-        } catch (SQLException e) {
             logger.error(e.getMessage(), e);
         }
 
@@ -89,5 +84,7 @@ public class JobRunner implements Job {
         prev = LocalDateTime.now();
         data.put(COUNT, count);
         data.put(PREVDATE, prev);
+
+        logger.info(">>>End.");
     }
 }

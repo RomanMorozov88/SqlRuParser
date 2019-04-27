@@ -1,5 +1,6 @@
 package htmlparser;
 
+import htmlparser.util.TimeRipper;
 import org.junit.Test;
 
 import java.time.LocalDate;
