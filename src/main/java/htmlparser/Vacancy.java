@@ -18,8 +18,6 @@ public class Vacancy {
     private LocalDateTime time;
     private String reference;
 
-    public Vacancy() {}
-
     public Vacancy(String name, String text, LocalDateTime time, String reference) {
         this.name = name;
         this.text = text;

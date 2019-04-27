@@ -6,12 +6,9 @@ import java.util.List;
 /**
  * Работа с базой данных.
  */
-public class DBworker {
+public class DBworker implements AutoCloseable {
 
     private Connection connection;
-
-    public DBworker() {
-    }
 
     public boolean init(Config config) throws ClassNotFoundException, SQLException {
         config.init();
@@ -33,7 +30,7 @@ public class DBworker {
         try (
                 PreparedStatement statement = this.connection.prepareStatement(
                         "INSERT INTO vacancies (vacancy_name, vacancy_text, vacancy_link, vacancy_date) " +
-                                "VALUES (?, ?, ?, ?);")) {
+                                "VALUES (?, ?, ?, ?) ON CONFLICT (vacancy_name) DO NOTHING;")) {
             this.connection.setAutoCommit(false);
             for (Vacancy v : list) {
                 statement.setString(1, v.getName());
@@ -62,7 +59,7 @@ public class DBworker {
         if (!resultSet.next()) {
             try (Statement statement = this.connection.createStatement()) {
                 statement.execute("CREATE TABLE vacancies(id serial primary key, "
-                        + "vacancy_name VARCHAR, vacancy_text VARCHAR, "
+                        + "vacancy_name VARCHAR UNIQUE, vacancy_text VARCHAR, "
                         + "vacancy_link VARCHAR, vacancy_date TIMESTAMP );");
             }
         }

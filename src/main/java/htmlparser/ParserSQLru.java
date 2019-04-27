@@ -41,9 +41,10 @@ public class ParserSQLru {
      * т.к. считаем, что все последующие посты старше того, что нам нужно.
      * @throws IOException
      */
-    public int parsPage(String target, String pattern,
-                        BiPredicate<LocalDateTime, LocalDateTime> predicate,
-                        LocalDateTime prevTime) throws IOException {
+    public List<Vacancy> parsPage(String target, String pattern,
+                                  BiPredicate<LocalDateTime, LocalDateTime> predicate,
+                                  LocalDateTime prevTime) throws IOException {
+        List<Vacancy> result = new ArrayList<>();
         int controlCount = 0;
 
         List<Element> jobList = this.primeFilter(target);
@@ -61,11 +62,14 @@ public class ParserSQLru {
             if (predicate.test(time, prevTime)) {
                 controlCount++;
                 if (grabText) {
-                    this.vacancyList.add(new Vacancy(name, text, time, reference));
+                    result.add(new Vacancy(name, text, time, reference));
                 }
             }
         }
-        return controlCount;
+        if (controlCount == 0) {
+            result = null;
+        }
+        return result;
     }
 
     /**
@@ -158,6 +162,7 @@ public class ParserSQLru {
 
     /**
      * Проверяем вакансии, появившиеся уже после последнего сеанса парсинга.
+     *
      * @param time
      * @param prev
      * @return
